@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0a0e1a" />
+<meta name="description" content="Forge — a real browser AI coding agent: plan, pick tools, execute, observe, validate, respond. Edits real files and runs real tests." />
+<title>Forge — AI Coding Agent</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="icon-192.png" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<a class="skip-link" href="#composer">Skip to chat</a>
+<div class="bg" aria-hidden="true"></div>
+
+<header class="top">
+  <div class="brand">
+    <div class="mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="M12 22V12"/><path d="m3 7 9 5 9-5"/></svg>
+    </div>
+    <div>
+      <div class="brand-name">Forge</div>
+      <div class="brand-sub" id="brainSub">Local engine · offline</div>
+    </div>
+  </div>
+  <div class="top-actions">
+    <button class="icon-btn" id="brainBtn" type="button" title="Choose the agent brain" aria-label="Choose agent brain">
+      <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 0-4 4v1a3 3 0 0 0-3 3 3 3 0 0 0 1 2.2A3 3 0 0 0 8 18v2h8v-2a3 3 0 0 0 2-5.8A3 3 0 0 0 19 10a3 3 0 0 0-3-3V6a4 4 0 0 0-4-4z"/></svg>
+    </button>
+    <button class="icon-btn" id="resetBtn" type="button" title="Reset project and chat" aria-label="Reset project">
+      <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="workspace">
+  <div class="mobile-switch" id="mobileSwitch">
+    <button data-m="chat" class="active" type="button">Chat</button>
+    <button data-m="work" type="button">Workspace</button>
+  </div>
+  <!-- LEFT: conversation -->
+  <section class="pane chat-pane" id="chatPane" aria-label="Agent conversation">
+    <div class="chat-scroll" id="chatScroll">
+      <div class="messages" id="messages"></div>
+    </div>
+    <form class="composer" id="composer" autocomplete="off">
+      <textarea id="input" rows="1" placeholder="Ask Forge to build or change something…" aria-label="Message the agent"></textarea>
+      <button class="send" id="sendBtn" type="submit" aria-label="Send">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>
+      </button>
+    </form>
+    <div class="quick" id="quick">
+      <button class="quick-chip" data-q="Build a simple webpage for me.">Build a webpage</button>
+      <button class="quick-chip" data-q="Change the webpage background and make it responsive.">Change background + responsive</button>
+      <button class="quick-chip" data-q="Add a calculator feature.">Add calculator</button>
+      <button class="quick-chip" data-q="Find the bug and fix it.">Find &amp; fix bug</button>
+      <button class="quick-chip" data-q="Test the whole project and tell me what actually works.">Test everything</button>
+    </div>
+  </section>
+
+  <!-- RIGHT: preview / files / trace -->
+  <section class="pane work-pane" id="workPane" aria-label="Agent workspace">
+    <div class="work-tabs" role="tablist" aria-label="Workspace views">
+      <button class="wtab active" data-view="preview" role="tab" aria-selected="true" type="button">Preview</button>
+      <button class="wtab" data-view="files" role="tab" aria-selected="false" type="button">Files</button>
+      <button class="wtab" data-view="trace" role="tab" aria-selected="false" type="button">Agent trace</button>
+      <button class="ghost-mini" id="runBtn" type="button" title="Re-render the project">↻ Run</button>
+    </div>
+    <div class="work-body">
+      <div class="view" id="view-preview">
+        <iframe id="preview" title="Live project preview" sandbox="allow-scripts allow-same-origin allow-forms allow-modals"></iframe>
+        <div class="preview-empty" id="previewEmpty">
+          <p>No project yet. Ask Forge to build something.</p>
+        </div>
+      </div>
+      <div class="view" id="view-files" hidden>
+        <div class="file-tabs" id="fileTabs"></div>
+        <pre class="code" id="fileCode"></pre>
+      </div>
+      <div class="view" id="view-trace" hidden>
+        <div class="trace" id="trace"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Brain modal -->
+<div class="modal-backdrop" id="brainBackdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="brainTitle">
+    <div class="modal-head">
+      <h2 id="brainTitle">Agent brain</h2>
+      <button class="icon-btn" id="brainClose" type="button" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="brain-opt selected" data-brain="local">
+        <div class="brain-ico">⚙️</div>
+        <div>
+          <div class="brain-name">Local engine <span class="tag">offline</span></div>
+          <div class="brain-desc">A deterministic planner + real tools that runs entirely in your browser. No key, no network. Handles webpage building, styling, calculator, debugging and testing.</div>
+        </div>
+      </div>
+      <div class="brain-opt" data-brain="llm">
+        <div class="brain-ico">✨</div>
+        <div>
+          <div class="brain-name">LLM <span class="tag">bring your own key</span></div>
+          <div class="brain-desc">Connect a real language model to plan arbitrary tasks. The key stays in this browser tab and is never uploaded anywhere except the provider's API.</div>
+        </div>
+      </div>
+      <div class="llm-config" id="llmConfig" hidden>
+        <label class="field"><span class="field-label">Provider</span>
+          <select id="provider" class="select">
+            <option value="gemini">Google Gemini</option>
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+          </select>
+        </label>
+        <label class="field"><span class="field-label">Model</span>
+          <input type="text" id="model" value="gemini-2.0-flash" />
+        </label>
+        <label class="field"><span class="field-label">API key</span>
+          <input type="password" id="apiKey" placeholder="Paste your API key (kept in memory only)" />
+        </label>
+        <p class="hint" id="llmHint">The key is used only for direct requests from this tab to the provider. It is not stored on any server.</p>
+      </div>
+      <div class="modal-foot">
+        <button class="ghost-btn" id="brainCancel" type="button">Cancel</button>
+        <button class="primary-btn" id="brainSave" type="button">Use this brain</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
