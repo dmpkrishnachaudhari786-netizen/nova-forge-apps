@@ -1,5 +1,7 @@
-/* Forge — service worker (offline app shell) */
-const CACHE = 'forge-v1';
+/* Forge — service worker
+   Network-first for app files (so updates land immediately), cache fallback
+   for offline use. Provider API calls are never cached. */
+const CACHE = 'forge-v2';
 const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -12,12 +14,14 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  // never cache model-provider API calls
-  if (/generativelanguage|openai|anthropic/.test(url.host)) return;
+  if (/generativelanguage|openai|anthropic|sarvam/.test(url.host)) return; // never cache model API calls
   e.respondWith(
-    caches.match(req).then((cached) => cached || fetch(req).then((res) => {
-      if (res && res.status === 200 && res.type === 'basic') { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
+    fetch(req).then((res) => {
+      if (res && res.status === 200 && res.type === 'basic') {
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put(req, copy));
+      }
       return res;
-    }).catch(() => caches.match('./index.html')))
+    }).catch(() => caches.match(req).then((c) => c || caches.match('./index.html')))
   );
 });
