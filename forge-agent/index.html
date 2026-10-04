@@ -104,19 +104,20 @@
         <div class="brain-ico">✨</div>
         <div>
           <div class="brain-name">LLM <span class="tag">bring your own key</span></div>
-          <div class="brain-desc">Connect a real language model to plan arbitrary tasks. The key stays in this browser tab and is never uploaded anywhere except the provider's API.</div>
+          <div class="brain-desc">Connect a real language model to plan arbitrary tasks. Supports Sarvam AI, Google Gemini, OpenAI and Anthropic. The key stays in this browser tab and is never uploaded anywhere except the provider's API.</div>
         </div>
       </div>
       <div class="llm-config" id="llmConfig" hidden>
         <label class="field"><span class="field-label">Provider</span>
           <select id="provider" class="select">
+            <option value="sarvam">Sarvam AI (India)</option>
             <option value="gemini">Google Gemini</option>
             <option value="openai">OpenAI</option>
             <option value="anthropic">Anthropic</option>
           </select>
         </label>
         <label class="field"><span class="field-label">Model</span>
-          <input type="text" id="model" value="gemini-2.0-flash" />
+          <input type="text" id="model" value="sarvam-105b" />
         </label>
         <label class="field"><span class="field-label">API key</span>
           <input type="password" id="apiKey" placeholder="Paste your API key (kept in memory only)" />
