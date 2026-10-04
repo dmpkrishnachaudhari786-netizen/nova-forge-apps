@@ -22,8 +22,12 @@
   let trace = [];
   let messages = [];
   let busy = false;
-  const MODEL_DEFAULTS = { sarvam: 'sarvam-105b', gemini: 'gemini-2.0-flash', openai: 'gpt-4o-mini', anthropic: 'claude-3-5-sonnet-latest' };
-  let config = { brain: 'local', provider: 'sarvam', model: MODEL_DEFAULTS.sarvam, apiKey: '' };
+  const MODEL_DEFAULTS = {
+    sarvam: 'sarvam-105b', gemini: 'gemini-2.0-flash', openai: 'gpt-4o-mini', anthropic: 'claude-3-5-sonnet-latest',
+    deepseek: 'deepseek-chat', kimi: 'moonshot-v1-8k', groq: 'llama-3.3-70b-versatile', mistral: 'mistral-large-latest',
+    openrouter: 'openai/gpt-4o-mini', xai: 'grok-2-latest', together: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', custom: ''
+  };
+  let config = { brain: 'local', provider: 'sarvam', model: MODEL_DEFAULTS.sarvam, apiKey: '', baseUrl: '' };
   let lastTestRun = [];
 
   /* ================= persistence (project only; never the key) ============= */
@@ -551,11 +555,24 @@ Write each file only ONCE — do not rewrite a file you already created.
 After the files exist, call render, then run_tests, then reply with a short plain-text final summary and NO tool_call.`;
 
   const PROVIDERS = {
-    sarvam:    { label: 'Sarvam',    url: 'https://api.sarvam.ai/v1/chat/completions',            kind: 'openai' },
-    openai:    { label: 'OpenAI',    url: 'https://api.openai.com/v1/chat/completions',            kind: 'openai' },
-    gemini:    { label: 'Gemini',                                                                  kind: 'gemini' },
-    anthropic: { label: 'Anthropic',                                                               kind: 'anthropic' }
+    sarvam:     { label: 'Sarvam',    url: 'https://api.sarvam.ai/v1/chat/completions',       kind: 'openai' },
+    openai:     { label: 'OpenAI',    url: 'https://api.openai.com/v1/chat/completions',       kind: 'openai' },
+    deepseek:   { label: 'DeepSeek',  url: 'https://api.deepseek.com/v1/chat/completions',     kind: 'openai' },
+    kimi:       { label: 'Kimi',      url: 'https://api.moonshot.ai/v1/chat/completions',      kind: 'openai' },
+    groq:       { label: 'Groq',      url: 'https://api.groq.com/openai/v1/chat/completions',  kind: 'openai' },
+    mistral:    { label: 'Mistral',   url: 'https://api.mistral.ai/v1/chat/completions',       kind: 'openai' },
+    openrouter: { label: 'OpenRouter',url: 'https://openrouter.ai/api/v1/chat/completions',    kind: 'openai' },
+    xai:        { label: 'xAI',       url: 'https://api.x.ai/v1/chat/completions',             kind: 'openai' },
+    together:   { label: 'Together',  url: 'https://api.together.xyz/v1/chat/completions',     kind: 'openai' },
+    custom:     { label: 'Custom',    url: '',                                                 kind: 'openai' },
+    gemini:     { label: 'Gemini',    kind: 'gemini' },
+    anthropic:  { label: 'Anthropic', kind: 'anthropic' }
   };
+
+  function corsHint(label) {
+    return label + ' could not be reached from the browser. This almost always means the provider blocks direct web-page calls (CORS) for security. ' +
+      'Use Sarvam, Groq, OpenRouter, Gemini or Anthropic (these allow it) — or choose Custom and enter a proxy URL that allows CORS.';
+  }
 
   async function callLLM(system, user) {
     const { provider, model, apiKey } = config;
@@ -564,25 +581,36 @@ After the files exist, call render, then run_tests, then reply with a short plai
     if (!p) throw new Error('Unknown provider: ' + provider);
 
     if (p.kind === 'openai') {
-      const res = await fetch(p.url, { method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
-        body: JSON.stringify({ model, temperature: 0.2, max_tokens: 4096, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }) });
+      const url = provider === 'custom' ? String(config.baseUrl || '').trim() : p.url;
+      if (!url) throw new Error('Custom provider needs a Base URL (the chat/completions endpoint).');
+      let res;
+      try {
+        res = await fetch(url, { method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
+          body: JSON.stringify({ model, temperature: 0.2, max_tokens: 4096, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }) });
+      } catch (e) { throw new Error(corsHint(p.label)); }
       if (!res.ok) throw new Error(p.label + ' API error ' + res.status + ': ' + (await res.text()).slice(0, 240));
       const j = await res.json();
       return (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
     }
     if (p.kind === 'gemini') {
       const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(apiKey);
-      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }], generationConfig: { temperature: 0.2 } }) });
+      let res;
+      try {
+        res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }], generationConfig: { temperature: 0.2 } }) });
+      } catch (e) { throw new Error(corsHint('Gemini')); }
       if (!res.ok) throw new Error('Gemini API error ' + res.status + ': ' + (await res.text()).slice(0, 240));
       const j = await res.json();
       return (j.candidates && j.candidates[0] && j.candidates[0].content.parts.map((x) => x.text).join('')) || '';
     }
     if (p.kind === 'anthropic') {
-      const res = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model, max_tokens: 2000, system, messages: [{ role: 'user', content: user }] }) });
+      let res;
+      try {
+        res = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+          body: JSON.stringify({ model, max_tokens: 4096, system, messages: [{ role: 'user', content: user }] }) });
+      } catch (e) { throw new Error(corsHint('Anthropic')); }
       if (!res.ok) throw new Error('Anthropic API error ' + res.status + ': ' + (await res.text()).slice(0, 240));
       const j = await res.json(); return (j.content && j.content[0] && j.content[0].text) || '';
     }
@@ -838,6 +866,8 @@ After the files exist, call render, then run_tests, then reply with a short plai
     document.querySelectorAll('.brain-opt').forEach((o) => o.classList.toggle('selected', o.dataset.brain === config.brain));
     $('llmConfig').hidden = config.brain !== 'llm';
     $('provider').value = config.provider; $('model').value = config.model;
+    $('baseUrl').value = config.baseUrl || '';
+    $('baseUrlField').hidden = config.provider !== 'custom';
     $('apiKey').value = config.apiKey;
     $('brainBackdrop').hidden = false;
   }
@@ -872,7 +902,11 @@ After the files exist, call render, then run_tests, then reply with a short plai
     });
 
     $('brainBtn').addEventListener('click', openBrain);
-    $('provider').addEventListener('change', (e) => { $('model').value = MODEL_DEFAULTS[e.target.value] || ''; });
+    $('provider').addEventListener('change', (e) => {
+      const v = e.target.value;
+      $('model').value = MODEL_DEFAULTS[v] || '';
+      $('baseUrlField').hidden = v !== 'custom';
+    });
     $('brainClose').addEventListener('click', closeBrain);
     $('brainCancel').addEventListener('click', closeBrain);
     $('brainBackdrop').addEventListener('click', (e) => { if (e.target === $('brainBackdrop')) closeBrain(); });
@@ -884,9 +918,11 @@ After the files exist, call render, then run_tests, then reply with a short plai
     $('brainSave').addEventListener('click', () => {
       config.brain = draftBrain.brain;
       config.provider = $('provider').value;
-      config.model = $('model').value.trim() || 'gemini-2.0-flash';
+      config.model = $('model').value.trim() || MODEL_DEFAULTS[config.provider] || '';
       config.apiKey = $('apiKey').value.trim();
-      $('brainSub').textContent = config.brain === 'llm' ? ('LLM · ' + config.provider + ' · ' + config.model) : 'Local engine · offline';
+      config.baseUrl = $('baseUrl').value.trim();
+      const pLabel = (document.querySelector('#provider option:checked') || {}).textContent || config.provider;
+      $('brainSub').textContent = config.brain === 'llm' ? ('LLM · ' + pLabel + ' · ' + (config.model || 'model?')) : 'Local engine · offline';
       closeBrain();
       toast(config.brain === 'llm' ? 'Using the LLM brain' : 'Using the local engine', 'ok');
     });
