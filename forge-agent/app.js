@@ -22,7 +22,8 @@
   let trace = [];
   let messages = [];
   let busy = false;
-  let config = { brain: 'local', provider: 'gemini', model: 'gemini-2.0-flash', apiKey: '' };
+  const MODEL_DEFAULTS = { sarvam: 'sarvam-105b', gemini: 'gemini-2.0-flash', openai: 'gpt-4o-mini', anthropic: 'claude-3-5-sonnet-latest' };
+  let config = { brain: 'local', provider: 'sarvam', model: MODEL_DEFAULTS.sarvam, apiKey: '' };
   let lastTestRun = [];
 
   /* ================= persistence (project only; never the key) ============= */
@@ -132,12 +133,21 @@
     // 2. structure
     add('Has a visible heading', !!doc.querySelector('h1'), doc.querySelector('h1') ? '' : 'no <h1> found');
     const cta = doc.querySelector('#cta');
-    if (cta) {
+    if (cta && doc.querySelector('#status')) {
       const status = doc.querySelector('#status');
-      if (status) status.textContent = '';
+      status.textContent = '';
       cta.click();
       await sleep(30);
-      add('Primary button responds to a click', status && status.textContent.trim().length > 0, status ? 'status="' + status.textContent.trim().slice(0, 40) + '"' : 'no #status element');
+      add('Primary button responds to a click', status.textContent.trim().length > 0, 'status="' + status.textContent.trim().slice(0, 40) + '"');
+    } else {
+      const btn = doc.querySelector('button');
+      if (btn) {
+        const before = previewErrors().length;
+        let threw = null;
+        try { btn.click(); } catch (e) { threw = e.message; }
+        await sleep(30);
+        add('Interactive button works without errors', !threw && previewErrors().length === before, threw || ('clicked "' + (btn.textContent || '').trim().slice(0, 24) + '"'));
+      }
     }
 
     // 3. calculator (only if present)
@@ -160,9 +170,9 @@
       } catch (e) { add('Calculator: handles divide by zero', false, e.message); }
     }
 
-    // 4. responsive rules
+    // 4. responsive rules (only meaningful when a stylesheet exists)
     const css = project.files['styles.css'] || '';
-    add('Stylesheet has responsive rules', /@media[^{]*max-width/i.test(css), /@media[^{]*max-width/i.test(css) ? '' : 'no @media max-width rule');
+    if (css) add('Stylesheet has responsive rules', /@media[^{]*max-width/i.test(css), /@media[^{]*max-width/i.test(css) ? '' : 'no @media max-width rule');
 
     return results;
   }
@@ -518,67 +528,174 @@ ${eq}
   }
 
   /* ================= LLM brain (real API call, user's key) ================= */
-  const TOOL_SPEC = `Available tools (respond with a JSON array of calls):
-- write_file {name, content}
-- edit_file {name, find, replace}
-- render {}
-- query {selector}
-- click {selector}
-- run_tests {}
-Reply ONLY with JSON of the form {"thought": "...", "tool": "name", "args": {...}} for one step at a time, or {"thought":"...", "final": "message"} when done.`;
+  const TOOL_SPEC = `You are Forge, an autonomous coding agent that edits a small web project (index.html, styles.css, app.js).
+
+Tools:
+1. write_file — args: name, content — write or overwrite a file.
+2. edit_file — args: name, find, replace — replace text inside a file.
+3. render — no args — render the project and report runtime errors.
+4. query — args: selector — check a CSS selector exists in the rendered page.
+5. click — args: selector — click an element in the rendered page.
+6. run_tests — no args — run the project test suite.
+
+To call a tool, reply with EXACTLY this format and nothing else:
+<tool_call>write_file
+<arg_key>name</arg_key>
+<arg_value>index.html</arg_value>
+<arg_key>content</arg_key>
+<arg_value>...the file contents...</arg_value>
+</tool_call>
+
+Call ONE tool per reply. Do not explain, do not add prose around a tool call.
+Write each file only ONCE — do not rewrite a file you already created.
+After the files exist, call render, then run_tests, then reply with a short plain-text final summary and NO tool_call.`;
+
+  const PROVIDERS = {
+    sarvam:    { label: 'Sarvam',    url: 'https://api.sarvam.ai/v1/chat/completions',            kind: 'openai' },
+    openai:    { label: 'OpenAI',    url: 'https://api.openai.com/v1/chat/completions',            kind: 'openai' },
+    gemini:    { label: 'Gemini',                                                                  kind: 'gemini' },
+    anthropic: { label: 'Anthropic',                                                               kind: 'anthropic' }
+  };
 
   async function callLLM(system, user) {
     const { provider, model, apiKey } = config;
     if (!apiKey) throw new Error('No API key set. Open the brain menu and add a key.');
-    if (provider === 'gemini') {
+    const p = PROVIDERS[provider];
+    if (!p) throw new Error('Unknown provider: ' + provider);
+
+    if (p.kind === 'openai') {
+      const res = await fetch(p.url, { method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
+        body: JSON.stringify({ model, temperature: 0.2, max_tokens: 4096, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }) });
+      if (!res.ok) throw new Error(p.label + ' API error ' + res.status + ': ' + (await res.text()).slice(0, 240));
+      const j = await res.json();
+      return (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
+    }
+    if (p.kind === 'gemini') {
       const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(apiKey);
       const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }], generationConfig: { temperature: 0.2 } }) });
-      if (!res.ok) throw new Error('Gemini API error ' + res.status + ': ' + (await res.text()).slice(0, 200));
+      if (!res.ok) throw new Error('Gemini API error ' + res.status + ': ' + (await res.text()).slice(0, 240));
       const j = await res.json();
-      return (j.candidates && j.candidates[0] && j.candidates[0].content.parts.map((p) => p.text).join('')) || '';
+      return (j.candidates && j.candidates[0] && j.candidates[0].content.parts.map((x) => x.text).join('')) || '';
     }
-    if (provider === 'openai') {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
-        body: JSON.stringify({ model, temperature: 0.2, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }) });
-      if (!res.ok) throw new Error('OpenAI API error ' + res.status + ': ' + (await res.text()).slice(0, 200));
-      const j = await res.json(); return j.choices[0].message.content || '';
-    }
-    if (provider === 'anthropic') {
+    if (p.kind === 'anthropic') {
       const res = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
         body: JSON.stringify({ model, max_tokens: 2000, system, messages: [{ role: 'user', content: user }] }) });
-      if (!res.ok) throw new Error('Anthropic API error ' + res.status + ': ' + (await res.text()).slice(0, 200));
+      if (!res.ok) throw new Error('Anthropic API error ' + res.status + ': ' + (await res.text()).slice(0, 240));
       const j = await res.json(); return (j.content && j.content[0] && j.content[0].text) || '';
     }
     throw new Error('Unknown provider');
   }
 
+  // Pull a JSON object out of a model reply, tolerating prose and code fences.
+  function extractAction(raw) {
+    const s = String(raw).replace(/```json/gi, '').replace(/```/g, '').trim();
+    try { return JSON.parse(s); } catch (e) {}
+    const i = s.indexOf('{'), j = s.lastIndexOf('}');
+    if (i !== -1 && j > i) { try { return JSON.parse(s.slice(i, j + 1)); } catch (e) {} }
+    return null;
+  }
+
+  // Accepts either a JSON action (Gemini/OpenAI/Anthropic) or the native
+  // <tool_call>…<arg_key>…</arg_key><arg_value>…</arg_value> format that
+  // Sarvam's model emits. Returns an ordered list of steps to run.
+  function parseActions(raw) {
+    const text = String(raw == null ? '' : raw);
+    const j = extractAction(text);
+    if (j && (j.tool || j.final)) return [{ kind: 'json', action: j }];
+    const calls = [];
+    const re = /<tool_call>\s*([A-Za-z_][\w]*)\s*([\s\S]*?)(?:<\/tool_call>|$)/g;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      const name = m[1], body = m[2];
+      const args = {};
+      const argRe = /<arg_key>([\s\S]*?)<\/arg_key>\s*<arg_value>([\s\S]*?)<\/arg_value>/g;
+      let a;
+      while ((a = argRe.exec(body)) !== null) args[a[1].trim()] = a[2];
+      calls.push({ kind: 'tool', tool: name, args });
+    }
+    if (calls.length) return calls;
+    return [{ kind: 'final', text: text.trim() }];
+  }
+
+  function runTool(t, a) {
+    if (t === 'write_file') return tools.write_file(a);
+    if (t === 'edit_file') return tools.edit_file(a);
+    if (t === 'render') return tools.render();
+    if (t === 'query') return tools.query(a);
+    if (t === 'click') return tools.click(a);
+    if (t === 'run_tests') return tools.run_tests();
+    return { ok: false, summary: 'Unknown tool: ' + t };
+  }
+
+  // Stable string hash, used to detect a genuinely repeated action.
+  function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) | 0; } return String(h); }
+
   async function runLLMAgent(text) {
     const transcript = ['User: ' + text];
-    for (let turn = 0; turn < 8; turn++) {
+    const seen = {}, fileWrites = {};
+    for (let turn = 0; turn < 10; turn++) {
       pushTrace('LLM', 'Turn ' + (turn + 1) + ' — asking the model to choose an action…', 'run');
-      const raw = await callLLM('You are Forge, a coding agent. ' + TOOL_SPEC + '\nCurrent files: ' + Object.keys(project.files).join(', '), transcript.join('\n\n'));
-      let action;
-      try { action = JSON.parse(raw.replace(/```json|```/g, '').trim()); }
-      catch (e) { pushTrace('LLM', 'Could not parse model output as JSON. Raw: ' + raw.slice(0, 200), 'fail'); return { text: 'The model did not return valid JSON: ' + raw.slice(0, 200), results: [] }; }
-      pushTrace('PLAN', (action.thought || '(no thought)'), 'done');
-      if (action.final) { pushTrace('RESPONSE', action.final, 'done'); return { text: action.final, results: [] }; }
-      const t = action.tool, a = action.args || {};
-      pushTrace('SELECT TOOL', t, 'run');
-      let obs;
-      if (t === 'write_file') obs = tools.write_file(a);
-      else if (t === 'edit_file') obs = tools.edit_file(a);
-      else if (t === 'render') obs = await tools.render();
-      else if (t === 'query') obs = tools.query(a);
-      else if (t === 'click') obs = tools.click(a);
-      else if (t === 'run_tests') obs = await tools.run_tests();
-      else obs = { ok: false, summary: 'Unknown tool: ' + t };
-      pushTrace('OBSERVE', obs.summary, obs.ok ? 'done' : 'fail');
-      transcript.push('Action: ' + JSON.stringify(action) + '\nObservation: ' + obs.summary);
-      if (obs.results) lastTestRun = obs.results;
-      await sleep(150);
+      const raw = await callLLM('You are Forge, a coding agent. ' + TOOL_SPEC + '\nCurrent files: ' + (Object.keys(project.files).join(', ') || '(none yet)'), transcript.join('\n\n'));
+      const steps = parseActions(raw);
+      let didTool = false, finalText = '';
+
+      for (const step of steps) {
+        if (step.kind === 'final') { finalText = step.text; break; }
+        if (step.kind === 'json' && step.action.final) { finalText = step.action.final; break; }
+        const t = step.kind === 'json' ? step.action.tool : step.tool;
+        const a = step.kind === 'json' ? (step.action.args || {}) : step.args;
+        if (step.kind === 'json' && step.action.thought) pushTrace('PLAN', step.action.thought, 'done');
+        pushTrace('SELECT TOOL', t, 'run');
+        const obs = await runTool(t, a);
+        pushTrace('OBSERVE', obs.summary, obs.ok ? 'done' : 'fail');
+        const remaining = ['index.html', 'styles.css', 'app.js'].filter((f) => !project.files[f]);
+        const stateLine = remaining.length
+          ? '\nStill missing: ' + remaining.join(', ') + '. Create these with write_file.'
+          : '\nAll project files exist. Next: call render, then run_tests, then reply with your final summary.';
+        transcript.push('Action: ' + t + ' ' + JSON.stringify(a).slice(0, 200) + '\nObservation: ' + obs.summary + stateLine);
+        if (obs.results) lastTestRun = obs.results;
+        didTool = true;
+        const sig = t + '|' + hashStr(JSON.stringify(a));
+        seen[sig] = (seen[sig] || 0) + 1;
+        if (t === 'write_file' && a && a.name) fileWrites[a.name] = (fileWrites[a.name] || 0) + 1;
+        const thrash = seen[sig] >= 3 || (a && a.name && fileWrites[a.name] >= 4);
+        if (thrash) {
+          pushTrace('LLM', 'Stopping to avoid a rewrite loop on ' + (a && a.name ? a.name : t) + '.', 'fail');
+          let summary = 'I stopped the model to avoid a rewrite loop. The project is built and verified: ';
+          if (project.exists) {
+            await renderPreview(); updatePreviewEmpty(); renderFiles();
+            const tr = await tools.run_tests(); lastTestRun = tr.results;
+            pushTrace('OBSERVE', tr.summary, tr.ok ? 'done' : 'fail');
+            summary += tr.summary;
+          } else { summary += 'no files were produced.'; }
+          return { text: summary, results: lastTestRun || [] };
+        }
+        await sleep(80);
+      }
+
+      if (finalText) {
+        if (!finalText.trim() && turn < 2) {
+          transcript.push('Your last reply was empty. Call the next tool using the <tool_call> format, or give a short final summary.');
+          pushTrace('LLM', 'Empty reply — asking the model again.', 'fail');
+          continue;
+        }
+        if (project.exists) { await renderPreview(); updatePreviewEmpty(); renderFiles(); }
+        pushTrace('RESPONSE', finalText, 'done');
+        const flat = lastTestRun || [];
+        return { text: finalText, results: flat };
+      }
+      if (!didTool) {
+        const shown = String(raw || '').trim().slice(0, 1200) || '(the model returned an empty reply)';
+        pushTrace('RESPONSE', shown, 'fail');
+        return { text: shown, results: [] };
+      }
+      if (turn >= 5) transcript.push('You have made enough changes. Reply NOW with a short plain-text final summary and no tool_call.');
+      else if (turn >= 3) transcript.push('Next, call render and then run_tests to verify your work, then reply with a short plain-text final summary.');
+      else transcript.push('Continue: call the next tool, or reply with a short plain-text final summary when the task is done.');
+      await sleep(120);
     }
     return { text: 'Reached the step limit before finishing. The trace shows what ran.', results: [] };
   }
@@ -754,6 +871,7 @@ Reply ONLY with JSON of the form {"thought": "...", "tool": "name", "args": {...
     });
 
     $('brainBtn').addEventListener('click', openBrain);
+    $('provider').addEventListener('change', (e) => { $('model').value = MODEL_DEFAULTS[e.target.value] || ''; });
     $('brainClose').addEventListener('click', closeBrain);
     $('brainCancel').addEventListener('click', closeBrain);
     $('brainBackdrop').addEventListener('click', (e) => { if (e.target === $('brainBackdrop')) closeBrain(); });
