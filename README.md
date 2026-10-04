@@ -50,11 +50,17 @@ User → Agent → Planner → Tool Selection → Execution → Observation → 
 - **Local engine (default, offline):** a deterministic planner that drives real
   tools. Handles: build a webpage, restyle + make responsive, add a calculator,
   find & fix a bug, and test the whole project.
-- **LLM (bring your own key):** connect **Sarvam AI** (`sarvam-105b`, India),
-  Google Gemini, OpenAI or Anthropic to plan arbitrary tasks. The key stays in
-  the browser tab and is only sent to the provider's API. (OpenAI's API does not
-  send CORS headers, so it cannot be called directly from a browser; Sarvam,
-  Gemini and Anthropic can.)
+- **LLM (bring your own key):** 12 provider options — **Sarvam AI** (India),
+  Google Gemini, OpenAI, Anthropic Claude, **DeepSeek**, **Kimi (Moonshot)**,
+  **Groq**, **Mistral**, **OpenRouter**, **xAI Grok**, **Together AI**, and a
+  **Custom (OpenAI-compatible)** option where you enter any base URL. The key
+  stays in the browser tab and is sent only to the provider.
+
+  Browser (CORS) note: Sarvam, Groq, OpenRouter, Gemini and Anthropic allow
+  direct calls from a web page. Some providers (OpenAI, DeepSeek, Mistral, xAI,
+  Kimi, Together) block browser calls for security — Forge detects that and
+  shows a clear message instead of a cryptic error, and you can use *Custom*
+  with your own proxy URL. Model names auto-fill when you pick a provider.
 
 **Real tools (they actually run):**
 - `write_file` / `edit_file` — edit the project files
@@ -74,6 +80,7 @@ the actual UI and the actual sandbox.
 
 - Nova Alarm: **34/34** automated checks passed
 - Forge (local engine): **27/27** automated checks passed (including the five required tasks)
+- Forge (providers UI): **6/6** checks passed (12 providers, per-provider model defaults, friendly CORS error)
 - Forge (LLM brain, live Sarvam API): **5/5** checks passed — the model really
   wrote index.html, styles.css and app.js, rendered the page and ran the tests
 
