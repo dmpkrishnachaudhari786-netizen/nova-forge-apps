@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0b1020" />
+<meta name="description" content="Nova Alarm — a premium, offline-capable smart alarm clock PWA with repeat days, snooze, history and real sound." />
+<title>Nova Alarm — Smart Alarm Clock</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="icon-192.png" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<div class="bg-glow" aria-hidden="true"></div>
+
+<header class="app-header">
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M5 3 3 5"/><path d="M19 3l2 2"/></svg>
+    </div>
+    <div class="brand-text">
+      <span class="brand-name">Nova Alarm</span>
+      <span class="brand-sub" id="nextMini">No alarms set</span>
+    </div>
+  </div>
+  <div class="header-actions">
+    <button class="icon-btn" id="formatBtn" type="button" aria-label="Toggle 12 or 24 hour format" title="12 / 24 hour format">24h</button>
+    <button class="icon-btn" id="themeBtn" type="button" aria-label="Toggle light and dark theme" title="Theme">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    </button>
+    <button class="icon-btn" id="settingsBtn" type="button" aria-label="Open settings" title="Settings">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="main" class="app-main">
+
+  <section class="clock-card" aria-label="Current time">
+    <div class="clock-time" id="clockTime">--:--:--</div>
+    <div class="clock-date" id="clockDate">—</div>
+    <div class="next-strip">
+      <span class="dot" id="nextDot" aria-hidden="true"></span>
+      <span id="nextLabel">No upcoming alarm</span>
+      <span class="next-count" id="nextCount"></span>
+    </div>
+  </section>
+
+  <section class="toolbar" aria-label="Alarm list controls">
+    <div class="tabs" role="tablist" aria-label="Views">
+      <button class="tab active" id="tabAlarms" role="tab" aria-selected="true" type="button">Alarms</button>
+      <button class="tab" id="tabHistory" role="tab" aria-selected="false" type="button">History</button>
+    </div>
+    <button class="ghost-btn" id="clearHistoryBtn" type="button" hidden>Clear</button>
+  </section>
+
+  <section id="alarmsView" aria-label="Your alarms">
+    <div id="alarmList" class="alarm-list"></div>
+    <div id="emptyState" class="empty-state" hidden>
+      <div class="empty-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M5 3 3 5"/><path d="M19 3l2 2"/></svg>
+      </div>
+      <h2>No alarms yet</h2>
+      <p>Tap the + button to set your first alarm.</p>
+    </div>
+  </section>
+
+  <section id="historyView" hidden aria-label="Alarm history">
+    <div id="historyList" class="history-list"></div>
+    <div id="historyEmpty" class="empty-state" hidden>
+      <div class="empty-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></svg>
+      </div>
+      <h2>No history</h2>
+      <p>Fired, snoozed and missed alarms will appear here.</p>
+    </div>
+  </section>
+
+  <div class="bottom-spacer"></div>
+</main>
+
+<button class="fab" id="addBtn" type="button" aria-label="Add alarm">
+  <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+</button>
+
+<!-- Add / Edit alarm modal -->
+<div class="modal-backdrop" id="editorBackdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editorTitle" id="editorModal">
+    <div class="modal-head">
+      <h2 id="editorTitle">New alarm</h2>
+      <button class="icon-btn" id="editorClose" type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <div class="time-display" id="timeDisplay">07:30</div>
+      <div class="time-steppers">
+        <div class="stepper">
+          <button type="button" class="step-btn" data-step="hour" data-dir="1" aria-label="Increase hour">▲</button>
+          <input type="number" id="hourInput" min="0" max="23" inputmode="numeric" aria-label="Hour" />
+          <button type="button" class="step-btn" data-step="hour" data-dir="-1" aria-label="Decrease hour">▼</button>
+        </div>
+        <div class="colon">:</div>
+        <div class="stepper">
+          <button type="button" class="step-btn" data-step="minute" data-dir="1" aria-label="Increase minute">▲</button>
+          <input type="number" id="minuteInput" min="0" max="59" inputmode="numeric" aria-label="Minute" />
+          <button type="button" class="step-btn" data-step="minute" data-dir="-1" aria-label="Decrease minute">▼</button>
+        </div>
+        <div class="meridiem" id="meridiem" hidden>
+          <button type="button" class="mer-btn active" data-mer="AM">AM</button>
+          <button type="button" class="mer-btn" data-mer="PM">PM</button>
+        </div>
+      </div>
+      <input type="time" id="nativeTime" class="visually-hidden" aria-hidden="true" tabindex="-1" />
+
+      <label class="field">
+        <span class="field-label">Label</span>
+        <input type="text" id="labelInput" maxlength="40" placeholder="e.g. Wake up, Gym, Medicine" />
+      </label>
+
+      <div class="field">
+        <span class="field-label">Repeat</span>
+        <div class="days" id="daysRow" role="group" aria-label="Repeat days">
+          <button type="button" class="day" data-day="1">M</button>
+          <button type="button" class="day" data-day="2">T</button>
+          <button type="button" class="day" data-day="3">W</button>
+          <button type="button" class="day" data-day="4">T</button>
+          <button type="button" class="day" data-day="5">F</button>
+          <button type="button" class="day" data-day="6">S</button>
+          <button type="button" class="day" data-day="0">S</button>
+        </div>
+        <button type="button" class="link-btn" id="onceBtn">One-time (clear days)</button>
+      </div>
+
+      <div class="field">
+        <span class="field-label">Sound</span>
+        <div class="sound-row" id="soundRow" role="group" aria-label="Alarm sound">
+          <button type="button" class="chip active" data-sound="beep">Beep</button>
+          <button type="button" class="chip" data-sound="chime">Chime</button>
+          <button type="button" class="chip" data-sound="gentle">Gentle</button>
+          <button type="button" class="chip ghost" id="previewSound" type="button">▶ Preview</button>
+        </div>
+      </div>
+
+      <div class="error-msg" id="editorError" hidden role="alert"></div>
+    </div>
+
+    <div class="modal-foot">
+      <button class="danger-btn" id="editorDelete" type="button" hidden>Delete</button>
+      <div class="foot-right">
+        <button class="ghost-btn" id="editorCancel" type="button">Cancel</button>
+        <button class="primary-btn" id="editorSave" type="button">Save alarm</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Ringing overlay -->
+<div class="ringing" id="ringing" hidden role="alertdialog" aria-modal="true" aria-labelledby="ringLabel">
+  <div class="ring-pulse" aria-hidden="true"></div>
+  <div class="ring-content">
+    <div class="ring-badge" id="ringBadge">Alarm</div>
+    <div class="ring-label" id="ringLabel">Alarm</div>
+    <div class="ring-time" id="ringTime">07:30</div>
+    <div class="ring-note" id="ringNote"></div>
+    <div class="ring-actions">
+      <button class="snooze-btn" id="snoozeBtn" type="button">Snooze <span id="snoozeMin">5</span> min</button>
+      <button class="dismiss-btn" id="dismissBtn" type="button">Dismiss</button>
+    </div>
+    <p class="ring-hint">Press <kbd>Esc</kbd> to dismiss · <kbd>S</kbd> to snooze</p>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div class="modal-backdrop" id="settingsBackdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="modal-head">
+      <h2 id="settingsTitle">Settings</h2>
+      <button class="icon-btn" id="settingsClose" type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="setting-row">
+        <div>
+          <div class="setting-title">Snooze length</div>
+          <div class="setting-sub">How long snooze postpones an alarm</div>
+        </div>
+        <select id="snoozeSelect" class="select">
+          <option value="5">5 min</option>
+          <option value="9">9 min</option>
+          <option value="10">10 min</option>
+          <option value="15">15 min</option>
+        </select>
+      </div>
+      <div class="setting-row">
+        <div>
+          <div class="setting-title">Alarm sound</div>
+          <div class="setting-sub">Play sound when an alarm rings</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="soundToggle" checked /><span class="slider"></span></label>
+      </div>
+      <div class="setting-row">
+        <div>
+          <div class="setting-title">Vibration</div>
+          <div class="setting-sub">Vibrate on supported devices</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="vibrateToggle" checked /><span class="slider"></span></label>
+      </div>
+      <div class="setting-row">
+        <div>
+          <div class="setting-title">Notifications</div>
+          <div class="setting-sub" id="notifSub">Show a system notification when an alarm rings</div>
+        </div>
+        <button class="ghost-btn" id="notifBtn" type="button">Enable</button>
+      </div>
+      <div class="setting-row">
+        <div>
+          <div class="setting-title">Keep screen awake</div>
+          <div class="setting-sub">Prevent screen sleep while this app is open</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="wakeToggle" /><span class="slider"></span></label>
+      </div>
+      <div class="about-box">
+        <div class="setting-title">Nova Alarm</div>
+        <p>Works offline. Your alarms are stored only on this device. Browsers cannot ring an alarm while the app is fully closed — keep this tab open (or installed) for the alarm to fire. Missed alarms are recorded when you return.</p>
+        <p class="muted" id="versionLine"></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap" aria-live="polite" aria-atomic="true"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
