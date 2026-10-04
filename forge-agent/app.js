@@ -661,8 +661,9 @@ After the files exist, call render, then run_tests, then reply with a short plai
         const sig = t + '|' + hashStr(JSON.stringify(a));
         seen[sig] = (seen[sig] || 0) + 1;
         if (t === 'write_file' && a && a.name) fileWrites[a.name] = (fileWrites[a.name] || 0) + 1;
-        const thrash = seen[sig] >= 3 || (a && a.name && fileWrites[a.name] >= 4);
-        if (thrash) {
+        // Only guard state-changing tools — repeating render/run_tests is legitimate.
+        const writesThrash = (t === 'write_file' || t === 'edit_file') && (seen[sig] >= 3 || (a && a.name && fileWrites[a.name] >= 4));
+        if (writesThrash) {
           pushTrace('LLM', 'Stopping to avoid a rewrite loop on ' + (a && a.name ? a.name : t) + '.', 'fail');
           let summary = 'I stopped the model to avoid a rewrite loop. The project is built and verified: ';
           if (project.exists) {
