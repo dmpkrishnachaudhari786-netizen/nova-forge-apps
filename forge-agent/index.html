@@ -113,8 +113,19 @@
             <option value="sarvam">Sarvam AI (India)</option>
             <option value="gemini">Google Gemini</option>
             <option value="openai">OpenAI</option>
-            <option value="anthropic">Anthropic</option>
+            <option value="anthropic">Anthropic Claude</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="kimi">Kimi (Moonshot)</option>
+            <option value="groq">Groq</option>
+            <option value="mistral">Mistral</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="xai">xAI Grok</option>
+            <option value="together">Together AI</option>
+            <option value="custom">Custom (OpenAI-compatible)</option>
           </select>
+        </label>
+        <label class="field" id="baseUrlField" hidden><span class="field-label">Base URL (chat/completions endpoint)</span>
+          <input type="text" id="baseUrl" placeholder="https://your-endpoint.example.com/v1/chat/completions" />
         </label>
         <label class="field"><span class="field-label">Model</span>
           <input type="text" id="model" value="sarvam-105b" />
@@ -122,7 +133,7 @@
         <label class="field"><span class="field-label">API key</span>
           <input type="password" id="apiKey" placeholder="Paste your API key (kept in memory only)" />
         </label>
-        <p class="hint" id="llmHint">The key is used only for direct requests from this tab to the provider. It is not stored on any server.</p>
+        <p class="hint" id="llmHint"><strong>Browser-friendly:</strong> Sarvam, Groq, OpenRouter, Gemini and Anthropic allow direct calls from a web page. Some providers (OpenAI, DeepSeek, Mistral, xAI, Kimi, Together) block browser calls for security — if that happens you will get a clear message, and you can use <em>Custom</em> with your own proxy URL. Your key is sent only to the provider, never stored on any server.</p>
       </div>
       <div class="modal-foot">
         <button class="ghost-btn" id="brainCancel" type="button">Cancel</button>
